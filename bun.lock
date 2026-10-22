@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "labbook",
+      "name": "campusbook",
       "dependencies": {
         "@m3e/web": "^2.9.2",
         "next": "16.4.0",

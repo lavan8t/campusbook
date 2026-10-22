@@ -3,9 +3,9 @@
 CampusBook is a campus auditorium and smart lecture hall reservation system built for high-concurrency scheduling and administrative authorization. It demonstrates PostgreSQL temporal range exclusion (`tstzrange` with `btree_gist`), ACID pessimistic locking, and relational division.
 
 ## Documentation Links
-- [Project Proposal (BCSE302P Database Systems Lab)](file:///home/kinglynara/Desktop/labbook/docs/PROJECT_PROPOSAL.md)
-- [Backend PRD & Database Design Specification](file:///home/kinglynara/Desktop/labbook/docs/BACKEND_PRD_AND_DATABASE_DESIGN.md)
-- [PostgreSQL Database DDL & Seed Script](file:///home/kinglynara/Desktop/labbook/database/schema.sql)
+- [Project Proposal (BCSE302P Database Systems Lab)](file:///home/kinglynara/Desktop/campusbook/docs/PROJECT_PROPOSAL.md)
+- [Backend PRD & Database Design Specification](file:///home/kinglynara/Desktop/campusbook/docs/BACKEND_PRD_AND_DATABASE_DESIGN.md)
+- [PostgreSQL Database DDL & Seed Script](file:///home/kinglynara/Desktop/campusbook/database/schema.sql)
 
 ## What it does
 
@@ -59,7 +59,7 @@ EXCLUDE USING gist (
 );
 ```
 
-LabBook simulates this constraint during booking submission. When an incoming interval intersects an existing booking for the same equipment, the engine rejects the write, returns an HTTP 409 status, and reports the conflicting booking ID.
+CampusBook simulates this constraint during booking submission. When an incoming interval intersects an existing booking for the same equipment, the engine rejects the write, returns an HTTP 409 status, and reports the conflicting booking ID.
 
 ## Architecture
 

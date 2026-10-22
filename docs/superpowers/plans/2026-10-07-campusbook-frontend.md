@@ -1,8 +1,8 @@
-# LabBook Minimal Flat UI Frontend Implementation Plan
+# CampusBook Minimal Flat UI Frontend Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Transform the LabBook frontend into a clean, flat, academic-grade UI with Roboto Flex, vibrant Material 3 color palette, integrated staff booking workflow (with start-now toggle and duration presets), and GSAP-animated React Flow relational schema.
+**Goal:** Transform the CampusBook frontend into a clean, flat, academic-grade UI with Roboto Flex, vibrant Material 3 color palette, integrated staff booking workflow (with start-now toggle and duration presets), and GSAP-animated React Flow relational schema.
 
 **Architecture:** Next.js App Router (client-side only interactive engine). Pure TypeScript relational division and GiST temporal range collision evaluator. React Flow ER diagram canvas with dynamic node highlights. Material Web Components (@m3e/web) themed with vibrant palette, with native date/time and duration quick-selectors.
 
