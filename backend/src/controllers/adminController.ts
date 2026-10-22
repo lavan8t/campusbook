@@ -174,6 +174,27 @@ export async function rejectBooking(req: Request, res: Response, next: NextFunct
       return res.status(400).json({ success: false, error: "admin_id is required." });
     }
 
+    if (!(await isAdmin(admin_id))) {
+      return res.status(403).json({
+        success: false,
+        error: "Authorization Error: Only an active ADMIN can reject bookings.",
+      });
+    }
+
+    const current = await query(
+      `SELECT booking_status FROM bookings WHERE booking_id = $1`,
+      [bookingId]
+    );
+    if (current.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Booking not found." });
+    }
+    if (current.rows[0].booking_status !== "PENDING") {
+      return res.status(409).json({
+        success: false,
+        error: `Invalid State Transition: Booking is ${current.rows[0].booking_status}, only PENDING bookings can be rejected.`,
+      });
+    }
+
     await query(
       `UPDATE bookings
        SET booking_status = 'REJECTED',
@@ -237,6 +258,166 @@ export async function getUtilizationReport(req: Request, res: Response, next: Ne
   }
 }
 
+// Shared Admin Guard: only ACTIVE users with the ADMIN role may use admin write endpoints
+async function isAdmin(adminId: number): Promise<boolean> {
+  const res = await query(
+    `SELECT 1
+     FROM users u
+     JOIN roles r ON u.role_id = r.role_id
+     WHERE u.user_id = $1 AND r.role_code = 'ADMIN' AND u.is_active = TRUE`,
+    [adminId]
+  );
+  return res.rows.length > 0;
+}
+
+const VENUE_TYPES = ["AUDITORIUM", "MINI_AUDITORIUM", "LECTURE_HALL", "SEMINAR_HALL"];
+
+// POST /api/admin/venues (Register a New Venue)
+export async function createVenue(req: Request, res: Response, next: NextFunction) {
+  try {
+    const {
+      venue_name,
+      venue_type,
+      building,
+      floor_number = 1,
+      seating_capacity,
+      has_air_conditioning = true,
+      projector_count = 1,
+      has_sound_system = true,
+      has_smart_podium = false,
+      required_auth_codes,
+      admin_id,
+    } = req.body;
+
+    if (!venue_name || !venue_type || !building || !seating_capacity || !admin_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing fields: venue_name, venue_type, building, seating_capacity, admin_id",
+      });
+    }
+
+    if (!VENUE_TYPES.includes(venue_type)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid venue_type. Allowed: ${VENUE_TYPES.join(", ")}`,
+      });
+    }
+
+    if (!(await isAdmin(admin_id))) {
+      return res.status(403).json({
+        success: false,
+        error: "Authorization Error: Only an active ADMIN can register venues.",
+      });
+    }
+
+    const result = await query(
+      `INSERT INTO venues (
+         venue_name, venue_type, building, floor_number, seating_capacity,
+         has_air_conditioning, projector_count, has_sound_system, has_smart_podium
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [
+        venue_name,
+        venue_type,
+        building,
+        Number(floor_number) || 1,
+        Number(seating_capacity),
+        Boolean(has_air_conditioning),
+        Number(projector_count) || 1,
+        Boolean(has_sound_system),
+        Boolean(has_smart_podium),
+      ]
+    );
+
+    const venue = result.rows[0];
+
+    const codes: string[] = Array.isArray(required_auth_codes)
+      ? required_auth_codes.filter((c: unknown) => typeof c === "string" && c.length > 0)
+      : [];
+    if (codes.length > 0) {
+      await query(
+        `INSERT INTO venue_requirements (venue_id, auth_id)
+         SELECT $1, auth_id FROM authorizations WHERE auth_code = ANY($2::varchar[])
+         ON CONFLICT DO NOTHING`,
+        [venue.venue_id, codes]
+      );
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Venue registered successfully.",
+      data: venue,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/admin/venues/:id/availability (Enable / Disable Booking Availability)
+export async function setVenueAvailability(req: Request, res: Response, next: NextFunction) {
+  try {
+    const venueId = Number(req.params.id);
+    const { venue_status, admin_id } = req.body;
+
+    if (!venue_status || !admin_id) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing fields: venue_status, admin_id",
+      });
+    }
+
+    if (!["ACTIVE", "MAINTENANCE", "DECOMMISSIONED"].includes(venue_status)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid venue_status. Allowed: ACTIVE, MAINTENANCE, DECOMMISSIONED",
+      });
+    }
+
+    if (!(await isAdmin(admin_id))) {
+      return res.status(403).json({
+        success: false,
+        error: "Authorization Error: Only an active ADMIN can change venue availability.",
+      });
+    }
+
+    const result = await query(
+      `UPDATE venues SET venue_status = $2 WHERE venue_id = $1 RETURNING *`,
+      [venueId, venue_status]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Venue not found." });
+    }
+
+    res.json({
+      success: true,
+      message: `Venue availability set to ${venue_status}.`,
+      data: result.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /api/admin/maintenance (List Upcoming Slot Blackouts)
+export async function listMaintenance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await query(
+      `SELECT m.maintenance_id, m.venue_id, v.venue_name, v.building,
+              m.start_datetime, m.end_datetime, m.reason, m.created_at
+       FROM venue_maintenance m
+       JOIN venues v ON m.venue_id = v.venue_id
+       WHERE m.end_datetime >= NOW()
+       ORDER BY m.start_datetime ASC`
+    );
+
+    res.json({ success: true, count: result.rows.length, data: result.rows });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /api/admin/maintenance (Schedule Maintenance Window)
 export async function scheduleMaintenance(req: Request, res: Response, next: NextFunction) {
   try {
@@ -249,11 +430,27 @@ export async function scheduleMaintenance(req: Request, res: Response, next: Nex
       });
     }
 
+    if (!(await isAdmin(admin_id))) {
+      return res.status(403).json({
+        success: false,
+        error: "Authorization Error: Only an active ADMIN can schedule maintenance.",
+      });
+    }
+
+    const start = new Date(start_datetime);
+    const end = new Date(end_datetime);
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        error: "End datetime must be strictly after start datetime.",
+      });
+    }
+
     const result = await query(
       `INSERT INTO venue_maintenance (venue_id, start_datetime, end_datetime, reason, scheduled_by)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [venue_id, new Date(start_datetime), new Date(end_datetime), reason, admin_id]
+      [venue_id, start, end, reason, admin_id]
     );
 
     res.status(201).json({

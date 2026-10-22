@@ -35,7 +35,42 @@ export async function createBooking(req: Request, res: Response, next: NextFunct
       });
     }
 
-    // 2. Relational Division: Verify User Authorizations against Venue Requirements
+    // 2. Venue Availability Check (disabled venue or maintenance blackout)
+    const venueAvail = await query(
+      `SELECT venue_status FROM venues WHERE venue_id = $1`,
+      [venue_id]
+    );
+    if (venueAvail.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Venue not found.",
+      });
+    }
+    const venueStatus = venueAvail.rows[0].venue_status;
+    if (venueStatus !== "ACTIVE") {
+      return res.status(409).json({
+        success: false,
+        error: `Slot Unavailable: Venue is ${venueStatus}. No bookings permitted.`,
+        code: "VENUE_UNAVAILABLE",
+      });
+    }
+
+    const maintenanceOverlap = await query(
+      `SELECT 1 FROM venue_maintenance
+       WHERE venue_id = $1
+         AND tstzrange(start_datetime, end_datetime, '[)') && tstzrange($2::timestamptz, $3::timestamptz, '[)')
+       LIMIT 1`,
+      [venue_id, start, end]
+    );
+    if (maintenanceOverlap.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: "Slot Unavailable: Venue is under scheduled maintenance during this interval.",
+        code: "SLOT_MAINTENANCE",
+      });
+    }
+
+    // 3. Relational Division: Verify User Authorizations against Venue Requirements
     const missingAuthResult = await query(
       `SELECT a.auth_id, a.auth_name, a.auth_code
        FROM venue_requirements vr

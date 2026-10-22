@@ -40,6 +40,7 @@ import { VenueCatalog } from "@/components/VenueCatalog";
 import MyBookings from "@/components/MyBookings";
 import { AdminQueue } from "@/components/AdminQueue";
 import { AdminReports } from "@/components/AdminReports";
+import AdminFacilityManager from "@/components/AdminFacilityManager";
 import UserSwitcherModal from "@/components/UserSwitcherModal";
 
 type ActiveTab =
@@ -561,22 +562,14 @@ export default function CampusBookPage() {
               />
             )}
 
-            {/* TAB 6: ADMIN FACILITIES OVERVIEW */}
+            {/* TAB 6: ADMIN FACILITIES (slot control + venue management) */}
             {activeTab === "admin-venues" && currentUser.user_type === "admin" && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {venues.map((v) => (
-                    <div key={v.venue_id} className="p-4 rounded-xl text-xs bg-surface-container-low">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-bold text-on-surface">{v.venue_name}</span>
-                        <m3e-badge variant="small">{v.venue_status}</m3e-badge>
-                      </div>
-                      <div className="text-on-surface-variant">{v.venue_type} • {v.seating_capacity} seats</div>
-                      <div className="text-on-surface-variant opacity-80 mt-0.5">{v.building}, Floor {v.floor_number}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <AdminFacilityManager
+                venues={venues}
+                adminId={currentUser.user_id}
+                onRefresh={refreshData}
+                notify={showToast}
+              />
             )}
 
             {/* TAB 7: ADMIN UTILIZATION REPORTS */}

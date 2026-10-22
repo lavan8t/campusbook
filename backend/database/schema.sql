@@ -373,3 +373,62 @@ INSERT INTO bookings (booking_ref, venue_id, user_id, event_id, start_datetime, 
 -- Insert Approval Record for Confirmed Booking
 INSERT INTO booking_approvals (booking_id, admin_id, decision, remarks) VALUES
 (1, 1, 'APPROVED', 'Lecture verified against faculty timetable and approved.');
+
+-- ============================================================
+-- VIT VENUE EXPANSION (New Auditoriums & Smart Halls)
+-- ============================================================
+INSERT INTO venues (venue_name, venue_type, building, floor_number, seating_capacity, has_air_conditioning, projector_count, has_sound_system, has_smart_podium, venue_status) VALUES
+('AB1 Auditorium', 'AUDITORIUM', 'AB Block', 1, 600, TRUE, 4, TRUE, TRUE, 'ACTIVE'),
+('AB2 Auditorium', 'AUDITORIUM', 'AB Block', 1, 400, TRUE, 3, TRUE, TRUE, 'ACTIVE'),
+('AC Block Auditorium', 'AUDITORIUM', 'AC Block', 1, 350, TRUE, 4, TRUE, TRUE, 'ACTIVE'),
+('CP Block Auditorium', 'AUDITORIUM', 'CP Block', 2, 500, TRUE, 3, TRUE, FALSE, 'ACTIVE'),
+('SM Block Auditorium', 'AUDITORIUM', 'SM Block', 1, 450, TRUE, 3, TRUE, TRUE, 'ACTIVE'),
+('M Block Auditorium', 'AUDITORIUM', 'M Block', 1, 550, TRUE, 4, TRUE, TRUE, 'ACTIVE'),
+('AB1-A Lecture Hall', 'LECTURE_HALL', 'AB Block', 2, 120, TRUE, 2, TRUE, TRUE, 'ACTIVE'),
+('AC-205 Smart Lecture Hall', 'LECTURE_HALL', 'AC Block', 2, 90, TRUE, 1, TRUE, TRUE, 'ACTIVE'),
+('CP-310 Smart Lecture Hall', 'LECTURE_HALL', 'CP Block', 3, 75, TRUE, 1, TRUE, FALSE, 'ACTIVE'),
+('SM-104 Smart Lecture Hall', 'LECTURE_HALL', 'SM Block', 1, 60, TRUE, 1, TRUE, FALSE, 'ACTIVE'),
+('Main Building Seminar Hall', 'SEMINAR_HALL', 'Main Building', 1, 150, TRUE, 2, TRUE, TRUE, 'ACTIVE'),
+('Innovation Centre Seminar Hall', 'SEMINAR_HALL', 'Innovation Centre', 2, 100, TRUE, 1, TRUE, FALSE, 'ACTIVE'),
+('Library Complex Seminar Room', 'SEMINAR_HALL', 'Library Complex', 2, 80, TRUE, 1, TRUE, FALSE, 'ACTIVE');
+
+-- New Venue Requirements for restricted new auditoriums
+INSERT INTO venue_requirements (venue_id, auth_id) VALUES
+(6, 1),  -- AB1 requires DEAN_PERMIT
+(8, 1),  -- AC Block requires DEAN_PERMIT
+(9, 3); -- CP Block requires AV_TECH_CERT
+
+-- Additional Users (random demo users)
+INSERT INTO users (full_name, email, phone, role_id, department, designation) VALUES
+('Dr. Lakshmi Narayanan', 'lakshmi.n@vit.ac.in', '+91-9876543214', 2, 'Computer Science', 'Professor'),
+('Prof. S. Iyer', 's.iyer@vit.ac.in', '+91-9876543215', 2, 'Mechanical Engineering', 'Professor'),
+('Nikhil Rao', 'nikhil.r@vitstudent.ac.in', '+91-9876543216', 3, 'Computer Science', 'Club Head'),
+('Sneha Iyer', 'sneha.i@vitstudent.ac.in', '+91-9876543217', 3, 'Biotechnology', 'Club Head'),
+('Arjun Nair', 'arjun.n@vit.ac.in', '+91-9876543218', 2, 'Electronics', 'Assistant Professor');
+
+-- Additional Authorizations (optional new codes, but using existing)
+INSERT INTO user_authorizations (user_id, auth_id, issue_date, expiry_date, verification_status) VALUES
+(6, 2, '2026-06-01', '2027-05-30', 'VERIFIED'), -- Dr. Lakshmi has HoD clearance
+(7, 3, '2026-07-01', '2027-06-30', 'VERIFIED'), -- Prof. Iyer has AV cert
+(9, 1, '2026-08-01', '2027-05-31', 'VERIFIED'), -- Sneha has DEAN_PERMIT
+(10, 2, '2026-09-01', '2027-08-31', 'VERIFIED'); -- Arjun HOD
+
+-- Additional Events for new users / venues (random demo data)
+INSERT INTO events (event_title, event_type, description, expected_attendees, organizer_user_id, club_id) VALUES
+('International Robotics Workshop', 'WORKSHOP', 'Hands-on robotics lab session', 120, 6, NULL),
+('Guest Lecture: AI Ethics', 'GUEST_LECTURE', 'Keynote on responsible AI', 200, 7, NULL),
+('Cultural Night Rehearsals', 'CULTURAL_EVENT', 'Dress rehearsal for annual fest', 250, 9, 2),
+('Departmental Symposium', 'CONFERENCE', 'Joint faculty-student presentations', 300, 10, NULL);
+
+-- Additional Bookings (random recent dates around 2026-10-22 to 2026-10-24)
+INSERT INTO bookings (booking_ref, venue_id, user_id, event_id, start_datetime, end_datetime, booking_status, purpose_notes) VALUES
+('BK-2026-201', 6, 6, 12, '2026-10-22 09:00:00+05:30', '2026-10-22 12:30:00+05:30', 'CONFIRMED', 'Robotics workshop in AB1'),
+('BK-2026-202', 9, 7, 13, '2026-10-23 10:00:00+05:30', '2026-10-23 14:00:00+05:30', 'PENDING', 'Guest lecture in AC Block'),
+('BK-2026-203', 10, 9, 14, '2026-10-24 14:00:00+05:30', '2026-10-24 17:00:00+05:30', 'PENDING', 'Cultural rehearsal'),
+('BK-2026-204', 11, 10, 15, '2026-10-22 14:00:00+05:30', '2026-10-22 17:30:00+05:30', 'CONFIRMED', 'Departmental symposium');
+
+-- Random Maintenance Blackouts (disable slots / venue status demo)
+INSERT INTO venue_maintenance (venue_id, start_datetime, end_datetime, reason, scheduled_by) VALUES
+(6, '2026-10-22 08:00:00+05:30', '2026-10-22 10:00:00+05:30', 'AV equipment calibration', 1),
+(9, '2026-10-23 09:00:00+05:30', '2026-10-23 16:00:00+05:30', 'Scheduled repair of air-conditioning duct', 1),
+(10, '2026-10-24 08:00:00+05:30', '2026-10-24 12:00:00+05:30', 'Deep cleaning of auditorium', 1);

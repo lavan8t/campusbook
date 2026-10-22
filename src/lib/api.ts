@@ -215,3 +215,32 @@ export async function rejectBooking(bookingId: number | string, adminId: number,
 export async function getUtilizationReport(): Promise<{ success: boolean; data: UtilizationStat[] }> {
   return apiFetch("/admin/reports/utilization");
 }
+
+export async function createVenue(payload: {
+  venue_name: string; venue_type: string; building: string; floor_number?: number;
+  seating_capacity: number; has_air_conditioning?: boolean; projector_count?: number;
+  has_sound_system?: boolean; has_smart_podium?: boolean; required_auth_codes?: string[]; admin_id: number;
+}): Promise<{ success: boolean; message: string; data: Venue }> {
+  return apiFetch("/admin/venues", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function setVenueAvailability(
+  id: number | string,
+  venue_status: string,
+  admin_id: number
+): Promise<{ success: boolean; message: string; data: Venue }> {
+  return apiFetch(`/admin/venues/${id}/availability`, {
+    method: "PATCH",
+    body: JSON.stringify({ venue_status, admin_id }),
+  });
+}
+
+export async function scheduleMaintenance(payload: {
+  venue_id: number | string; start_datetime: string; end_datetime: string; reason: string; admin_id: number;
+}): Promise<{ success: boolean; message: string; data: any }> {
+  return apiFetch("/admin/maintenance", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function listMaintenance(): Promise<{ success: boolean; data: any[] }> {
+  return apiFetch("/admin/maintenance");
+}
