@@ -303,10 +303,11 @@ export async function cancelBooking(req: Request, res: Response, next: NextFunct
   }
 }
 
-// GET /api/bookings/timetable?date=YYYY-MM-DD
+// GET /api/bookings/timetable?date=YYYY-MM-DD OR ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 export async function getTimetableBookings(req: Request, res: Response, next: NextFunction) {
   try {
-    const dateStr = (req.query.date as string) || new Date().toISOString().split("T")[0];
+    const startDate = (req.query.start_date as string) || (req.query.date as string) || new Date().toISOString().split("T")[0];
+    const endDate = (req.query.end_date as string) || (req.query.date as string) || startDate;
 
     const result = await query(
       `SELECT 
@@ -340,16 +341,18 @@ export async function getTimetableBookings(req: Request, res: Response, next: Ne
       JOIN events e ON b.event_id = e.event_id
       LEFT JOIN clubs c ON e.club_id = c.club_id
       LEFT JOIN booking_approvals ba ON b.booking_id = ba.booking_id
-      WHERE DATE(b.start_datetime AT TIME ZONE 'Asia/Kolkata') = $1
+      WHERE DATE(b.start_datetime AT TIME ZONE 'Asia/Kolkata') BETWEEN $1 AND $2
         AND b.booking_status IN ('CONFIRMED', 'PENDING')
       ORDER BY b.start_datetime ASC`,
-      [dateStr]
+      [startDate, endDate]
     );
 
     res.json({
       success: true,
       count: result.rows.length,
-      date: dateStr,
+      start_date: startDate,
+      end_date: endDate,
+      date: startDate,
       data: result.rows,
     });
   } catch (err) {

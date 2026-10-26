@@ -43,6 +43,7 @@ export function AppSidebar({
   const standardNavItems: NavItemDef[] = [
     { id: "timetable", label: "Timetable", icon: "calendar_month" },
     { id: "book", label: "Book Venue", icon: "add_circle" },
+    { id: "search", label: "Search", icon: "search" },
     { id: "catalog", label: "Venues", icon: "domain" },
     {
       id: "my-bookings",
@@ -59,6 +60,11 @@ export function AppSidebar({
       label: "Pending Approvals",
       icon: "pending_actions",
       badge: pendingQueueCount,
+    },
+    {
+      id: "search",
+      label: "Search",
+      icon: "search",
     },
     {
       id: "admin-venues",

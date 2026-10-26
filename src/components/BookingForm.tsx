@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from "react";
 import type { CampusUser } from "@/data/schema";
 import type { Venue, VenueRequirement, CreateBookingPayload, Booking } from "@/lib/api";
-import { formatTimeRailway, formatDateDDMMYYYY } from "@/lib/timetableUtils";
+import { formatTimeRailway, formatDateDDMMYYYY, getSystemDateYYYYMMDD } from "@/lib/timetableUtils";
 
 import "@m3e/web/form-field";
 import "@m3e/web/select";
@@ -94,7 +94,11 @@ export function BookingForm({
     venues[0]?.venue_id ? Number(venues[0].venue_id) : 1,
   );
   const [internalBookingDate, setInternalBookingDate] =
-    useState<string>("2026-10-22");
+    useState<string>("2026-10-26");
+
+  React.useEffect(() => {
+    setInternalBookingDate(getSystemDateYYYYMMDD());
+  }, []);
   const [internalStartTime, setInternalStartTime] = useState<string>("10:00");
   const [internalEndTime, setInternalEndTime] = useState<string>("13:00");
   const [internalEventTitle, setInternalEventTitle] = useState<string>("");

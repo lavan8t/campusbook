@@ -176,3 +176,94 @@ export function getBookingSpan(startIso: string, endIso: string, targetDateStr: 
     clampedEnd: endMinutes > timetableEndMinutes,
   };
 }
+
+export function getSystemDateYYYYMMDD(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: CAMPUS_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(":").map(Number);
+  return (parts[0] || 0) * 60 + (parts[1] || 0);
+}
+
+export interface FreeSlot {
+  startMinutes: number;
+  endMinutes: number;
+  startTime: string;
+  endTime: string;
+  label: string;
+  durationHours: number;
+}
+
+export function calculateContinuousFreeSlots(
+  rangeStartMinutes: number,
+  rangeEndMinutes: number,
+  busyIntervals: [number, number][]
+): FreeSlot[] {
+  const sorted = busyIntervals
+    .map(([s, e]) => [Math.max(rangeStartMinutes, s), Math.min(rangeEndMinutes, e)] as [number, number])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0]);
+
+  const merged: [number, number][] = [];
+  for (const interval of sorted) {
+    if (!merged.length) {
+      merged.push([interval[0], interval[1]]);
+    } else {
+      const last = merged[merged.length - 1];
+      if (interval[0] <= last[1]) {
+        last[1] = Math.max(last[1], interval[1]);
+      } else {
+        merged.push([interval[0], interval[1]]);
+      }
+    }
+  }
+
+  const free: FreeSlot[] = [];
+  let curr = rangeStartMinutes;
+
+  for (const [busyStart, busyEnd] of merged) {
+    if (busyStart > curr) {
+      const startH = Math.floor(curr / 60);
+      const startM = curr % 60;
+      const endH = Math.floor(busyStart / 60);
+      const endM = busyStart % 60;
+      const sTime = formatSlotTime(startH, startM);
+      const eTime = formatSlotTime(endH, endM);
+      free.push({
+        startMinutes: curr,
+        endMinutes: busyStart,
+        startTime: sTime,
+        endTime: eTime,
+        label: `${sTime} – ${eTime}`,
+        durationHours: Math.round(((busyStart - curr) / 60) * 10) / 10,
+      });
+    }
+    curr = Math.max(curr, busyEnd);
+  }
+
+  if (curr < rangeEndMinutes) {
+    const startH = Math.floor(curr / 60);
+    const startM = curr % 60;
+    const endH = Math.floor(rangeEndMinutes / 60);
+    const endM = rangeEndMinutes % 60;
+    const sTime = formatSlotTime(startH, startM);
+    const eTime = formatSlotTime(endH, endM);
+    free.push({
+      startMinutes: curr,
+      endMinutes: rangeEndMinutes,
+      startTime: sTime,
+      endTime: eTime,
+      label: `${sTime} – ${eTime}`,
+      durationHours: Math.round(((rangeEndMinutes - curr) / 60) * 10) / 10,
+    });
+  }
+
+  return free;
+}

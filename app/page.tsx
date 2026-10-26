@@ -8,6 +8,7 @@ import {
   FALLBACK_TIMETABLE_BOOKINGS,
   type CampusUser,
 } from "@/data/schema";
+import { getSystemDateYYYYMMDD } from "@/lib/timetableUtils";
 import {
   getVenues,
   createBooking,
@@ -38,6 +39,7 @@ import GanttTimetable from "@/components/GanttTimetable";
 import { BookingForm } from "@/components/BookingForm";
 import { VenueCatalog } from "@/components/VenueCatalog";
 import MyBookings from "@/components/MyBookings";
+import SearchFreeSlots from "@/components/SearchFreeSlots";
 import { AdminQueue } from "@/components/AdminQueue";
 import { AdminReports } from "@/components/AdminReports";
 import AdminFacilityManager from "@/components/AdminFacilityManager";
@@ -46,6 +48,7 @@ import UserSwitcherModal from "@/components/UserSwitcherModal";
 type ActiveTab =
   | "timetable"
   | "book"
+  | "search"
   | "catalog"
   | "my-bookings"
   | "admin-pending"
@@ -65,7 +68,7 @@ export default function CampusBookPage() {
   const [mounted, setMounted] = useState<boolean>(false);
 
   // 3. Timetable State (Home View)
-  const [timetableDate, setTimetableDate] = useState<string>("2026-10-22");
+  const [timetableDate, setTimetableDate] = useState<string>("2026-10-26");
   const [timetableBookings, setTimetableBookings] = useState<Booking[]>(FALLBACK_TIMETABLE_BOOKINGS);
 
   // 4. Data State from Backend
@@ -84,7 +87,7 @@ export default function CampusBookPage() {
 
   // 6. Booking Form State (Normal Users)
   const [selectedVenueId, setSelectedVenueId] = useState<number>(1);
-  const [bookingDate, setBookingDate] = useState<string>("2026-10-22");
+  const [bookingDate, setBookingDate] = useState<string>("2026-10-26");
   const [startTime, setStartTime] = useState<string>("10:00");
   const [endTime, setEndTime] = useState<string>("13:00");
   const [eventTitle, setEventTitle] = useState<string>("");
@@ -112,9 +115,12 @@ export default function CampusBookPage() {
     setSnackbarOpen(true);
   }
 
-  // Restore saved theme on mount
+  // Restore saved theme on mount & synchronize dynamic system date
   useEffect(() => {
     setMounted(true);
+    const today = getSystemDateYYYYMMDD();
+    setTimetableDate(today);
+    setBookingDate(today);
     const savedTheme = localStorage.getItem("campusbook_theme") as "light" | "dark" | null;
     if (savedTheme === "light" || savedTheme === "dark") {
       setTheme(savedTheme);
@@ -538,6 +544,21 @@ export default function CampusBookPage() {
                 existingBookings={timetableBookings}
                 serverConflict={serverConflict}
                 onClearServerConflict={() => setServerConflict(null)}
+              />
+            )}
+
+            {/* TAB: SEARCH FREE SLOTS */}
+            {activeTab === "search" && (
+              <SearchFreeSlots
+                venues={venues}
+                onNavigateToBook={(venueId, date, slotStart, slotEnd) => {
+                  setSelectedVenueId(venueId);
+                  setBookingDate(date);
+                  setStartTime(slotStart);
+                  setEndTime(slotEnd);
+                  setActiveTab("book");
+                }}
+                loading={loading}
               />
             )}
 

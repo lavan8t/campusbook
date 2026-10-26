@@ -179,8 +179,11 @@ export async function cancelBooking(bookingId: number | string, userId: number):
   });
 }
 
-export async function getTimetableBookings(date: string): Promise<{ success: boolean; date: string; data: Booking[] }> {
-  return apiFetch(`/bookings/timetable?date=${date}`);
+export async function getTimetableBookings(dateOrStart: string, endDate?: string): Promise<{ success: boolean; date: string; data: Booking[] }> {
+  if (endDate && endDate !== dateOrStart) {
+    return apiFetch(`/bookings/timetable?start_date=${dateOrStart}&end_date=${endDate}`);
+  }
+  return apiFetch(`/bookings/timetable?date=${dateOrStart}`);
 }
 
 // 4. Admin Operations
