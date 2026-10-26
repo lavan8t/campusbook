@@ -162,7 +162,7 @@ export function OptionsView({
           )}
 
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label" htmlFor="current-passcode-input">
                 Current Passcode
               </label>
@@ -194,7 +194,7 @@ export function OptionsView({
           </div>
 
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label" htmlFor="new-passcode-input">
                 New Passcode
               </label>
@@ -226,7 +226,7 @@ export function OptionsView({
           </div>
 
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label" htmlFor="confirm-passcode-input">
                 Confirm New Passcode
               </label>

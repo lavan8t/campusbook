@@ -2,7 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import type { CampusUser } from "@/data/schema";
-import type { Venue, VenueRequirement, CreateBookingPayload } from "@/lib/api";
+import type { Venue, VenueRequirement, CreateBookingPayload, Booking } from "@/lib/api";
+import { formatTimeRailway, formatDateDDMMYYYY } from "@/lib/timetableUtils";
 
 import "@m3e/web/form-field";
 import "@m3e/web/select";
@@ -17,6 +18,7 @@ import "@m3e/web/icon-button";
 import "@m3e/web/card";
 import "@m3e/web/chips";
 import "@m3e/web/icon";
+import "@m3e/web/dialog";
 
 export interface BookingFormProps {
   venues: Venue[];
@@ -45,6 +47,18 @@ export interface BookingFormProps {
     eligible: boolean;
     missing: VenueRequirement[];
   };
+  existingBookings?: Booking[];
+  serverConflict?: Booking | {
+    booking_id?: number | string;
+    booking_ref?: string;
+    event_title?: string;
+    event_type?: string;
+    requester_name?: string;
+    venue_name?: string;
+    start_datetime?: string;
+    end_datetime?: string;
+  } | null;
+  onClearServerConflict?: () => void;
 }
 
 export function BookingForm({
@@ -71,6 +85,9 @@ export function BookingForm({
   onSubmit,
   onSubmitPayload,
   prerequisiteCheck: propPrerequisiteCheck,
+  existingBookings = [],
+  serverConflict = null,
+  onClearServerConflict,
 }: BookingFormProps) {
   // Local state fallbacks for controlled/uncontrolled operation
   const [internalVenueId, setInternalVenueId] = useState<number>(
@@ -87,6 +104,9 @@ export function BookingForm({
     useState<number>(100);
   const [internalPurposeNotes, setInternalPurposeNotes] = useState<string>("");
   const [durationPreset, setDurationPreset] = useState<string>("preset-custom");
+
+  const [showClashDialog, setShowClashDialog] = useState<boolean>(false);
+  const clashDialogRef = React.useRef<HTMLElement>(null);
 
   const venueId = propVenueId !== undefined ? propVenueId : internalVenueId;
   const bookingDate =
@@ -256,14 +276,18 @@ export function BookingForm({
     };
 
     startInput?.addEventListener("change", handleStartChange);
+    startInput?.addEventListener("input", handleStartChange);
     startPicker?.addEventListener("change", handleStartChange);
     endInput?.addEventListener("change", handleEndChange);
+    endInput?.addEventListener("input", handleEndChange);
     endPicker?.addEventListener("change", handleEndChange);
 
     return () => {
       startInput?.removeEventListener("change", handleStartChange);
+      startInput?.removeEventListener("input", handleStartChange);
       startPicker?.removeEventListener("change", handleStartChange);
       endInput?.removeEventListener("change", handleEndChange);
+      endInput?.removeEventListener("input", handleEndChange);
       endPicker?.removeEventListener("change", handleEndChange);
     };
   }, [startTime, endTime]);
@@ -328,15 +352,82 @@ export function BookingForm({
     }
   };
 
+  React.useEffect(() => {
+    if (serverConflict) {
+      setShowClashDialog(true);
+    }
+  }, [serverConflict]);
+
+  React.useEffect(() => {
+    const el = clashDialogRef.current as (HTMLElement & { show?: () => void; hide?: () => void; open?: boolean }) | null;
+    if (el) {
+      if (showClashDialog) {
+        el.open = true;
+        el.show?.();
+        el.setAttribute("open", "");
+      } else {
+        el.open = false;
+        el.hide?.();
+        el.removeAttribute("open");
+      }
+    }
+  }, [showClashDialog]);
+
+  const handleCloseClashDialog = () => {
+    setShowClashDialog(false);
+    if (onClearServerConflict) onClearServerConflict();
+  };
+
+  const selectedStart = `${bookingDate}T${startTime}:00+05:30`;
+  const selectedEnd = `${bookingDate}T${endTime}:00+05:30`;
+  const startTs = new Date(selectedStart).getTime();
+  const endTs = new Date(selectedEnd).getTime();
+
+  // Overlapping confirmed booking on this venue
+  const activeConfirmedConflict = useMemo(() => {
+    if (serverConflict) return serverConflict;
+    if (!existingBookings || existingBookings.length === 0) return null;
+    if (isNaN(startTs) || isNaN(endTs) || endTs <= startTs) return null;
+
+    return (
+      existingBookings.find((b) => {
+        if (Number(b.venue_id) !== Number(venueId)) return false;
+        if (b.booking_status !== "CONFIRMED") return false;
+        const bStart = new Date(b.start_datetime).getTime();
+        const bEnd = new Date(b.end_datetime).getTime();
+        return bStart < endTs && bEnd > startTs;
+      }) || null
+    );
+  }, [existingBookings, venueId, startTs, endTs, serverConflict]);
+
+  // Overlapping pending bookings on this venue
+  const activePendingConflicts = useMemo(() => {
+    if (!existingBookings || existingBookings.length === 0) return [];
+    if (isNaN(startTs) || isNaN(endTs) || endTs <= startTs) return [];
+
+    return existingBookings.filter((b) => {
+      if (Number(b.venue_id) !== Number(venueId)) return false;
+      if (b.booking_status !== "PENDING") return false;
+      const bStart = new Date(b.start_datetime).getTime();
+      const bEnd = new Date(b.end_datetime).getTime();
+      return bStart < endTs && bEnd > startTs;
+    });
+  }, [existingBookings, venueId, startTs, endTs]);
+
   const handleSubmit = async (e: React.FormEvent) => {
+    if (activeConfirmedConflict) {
+      e.preventDefault();
+      setShowClashDialog(true);
+      return;
+    }
     if (onSubmit) {
       await onSubmit(e);
       return;
     }
     e.preventDefault();
     if (onSubmitPayload) {
-      const startISO = new Date(`${bookingDate}T${startTime}:00`).toISOString();
-      const endISO = new Date(`${bookingDate}T${endTime}:00`).toISOString();
+      const startISO = `${bookingDate}T${startTime}:00+05:30`;
+      const endISO = `${bookingDate}T${endTime}:00+05:30`;
       await onSubmitPayload({
         user_id: currentUser.user_id,
         venue_id: Number(venueId),
@@ -357,13 +448,13 @@ export function BookingForm({
   const parsedEndMinute = Number(endTime.split(":")[1]) || 0;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 max-w-7xl mx-auto w-full">
       {/* Left Column: Booking Form */}
-      <div className="lg:col-span-7 bg-surface rounded-lg p-6 sm:p-8">
+      <div className="lg:col-span-7 bg-surface-container-lowest rounded-xl p-6 sm:p-8 border border-outline-variant/60 shadow-xs">
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Target Venue / Hall Selector */}
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label">Target Venue / Hall</label>
               <m3e-select
                 value={String(venueId)}
@@ -445,7 +536,7 @@ export function BookingForm({
           {/* Date & Time Range Inputs using m3e Web Components (no default form date picker) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <m3e-form-field className="w-full">
+              <m3e-form-field variant="outlined" className="w-full" float-label="always">
                 <label slot="label" htmlFor="booking-date-field">
                   Reservation Date
                 </label>
@@ -468,7 +559,7 @@ export function BookingForm({
             </div>
 
             <div>
-              <m3e-form-field className="w-full">
+              <m3e-form-field variant="outlined" className="w-full" float-label="always">
                 <label slot="label" htmlFor="start-time-field">
                   Start Time
                 </label>
@@ -493,7 +584,7 @@ export function BookingForm({
             </div>
 
             <div>
-              <m3e-form-field className="w-full">
+              <m3e-form-field variant="outlined" className="w-full" float-label="always">
                 <label slot="label" htmlFor="end-time-field">
                   End Time
                 </label>
@@ -557,7 +648,7 @@ export function BookingForm({
           {/* Event Title & Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <m3e-form-field className="w-full">
+              <m3e-form-field variant="outlined" className="w-full" float-label="always">
                 <label slot="label" htmlFor="event-title-input">
                   Event / Lecture Title
                 </label>
@@ -576,7 +667,7 @@ export function BookingForm({
             </div>
 
             <div>
-              <m3e-form-field className="w-full">
+              <m3e-form-field variant="outlined" className="w-full" float-label="always">
                 <label slot="label">Event Category</label>
                 <m3e-select
                   value={eventType}
@@ -613,7 +704,7 @@ export function BookingForm({
 
           {/* Expected Attendees */}
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label" htmlFor="expected-attendees-input">
                 Expected Attendees (Max capacity: {activeVenue.seating_capacity}
                 )
@@ -636,7 +727,7 @@ export function BookingForm({
 
           {/* Justification & Special Requirements Notes with Textarea Autosize */}
           <div>
-            <m3e-form-field className="w-full">
+            <m3e-form-field variant="outlined" className="w-full" float-label="always">
               <label slot="label" htmlFor="purpose-notes-textarea">
                 Justification & Special Requirements
               </label>
@@ -655,18 +746,65 @@ export function BookingForm({
             </m3e-form-field>
           </div>
 
+          {/* Confirmed Slot Clash Warning Banner */}
+          {activeConfirmedConflict && (
+            <div className="p-4 rounded-lg bg-error-container text-on-error-container border border-error/30 flex items-start gap-3">
+              <m3e-icon name="event_busy" className="text-error text-xl shrink-0 mt-0.5">
+                event_busy
+              </m3e-icon>
+              <div className="flex-1 space-y-1.5">
+                <div className="font-semibold text-xs text-on-error-container">
+                  Slot Already Booked
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-95">
+                  <strong>{activeVenue.venue_name}</strong> is already confirmed for <strong>{activeConfirmedConflict.event_title}</strong> (
+                  {formatTimeRailway(activeConfirmedConflict.start_datetime)} – {formatTimeRailway(activeConfirmedConflict.end_datetime)}
+                  ). Please select an alternate time or venue.
+                </p>
+                <div className="pt-1">
+                  <m3e-button
+                    variant="outlined"
+                    type="button"
+                    onClick={() => setShowClashDialog(true)}
+                    className="text-xs"
+                  >
+                    <m3e-icon slot="icon" name="visibility">visibility</m3e-icon>
+                    View Confirmed Booking Details
+                  </m3e-button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Pending Bids Slot Contention Notice */}
+          {!activeConfirmedConflict && activePendingConflicts.length > 0 && (
+            <div className="p-3.5 rounded-lg bg-surface-container-high text-on-surface border border-outline-variant/50 flex items-start gap-3 text-xs">
+              <m3e-icon name="schedule" className="text-primary text-lg shrink-0 mt-0.5">
+                schedule
+              </m3e-icon>
+              <div className="flex-1 text-[11px] leading-relaxed">
+                <span className="font-semibold text-on-surface">Slot Contention Notice: </span>
+                There {activePendingConflicts.length === 1 ? "is currently 1 pending request" : `are currently ${activePendingConflicts.length} pending requests`} bidding for this slot. Your request will enter the queue as a competing bid for Admin review.
+              </div>
+            </div>
+          )}
+
           {/* Submit Action */}
           <div className="pt-3">
             <m3e-button
               variant="filled"
               type="submit"
-              disabled={loading || !prerequisiteCheck.eligible}
+              disabled={loading || !prerequisiteCheck.eligible || Boolean(activeConfirmedConflict)}
               className="w-full"
             >
-              <m3e-icon slot="icon" name="send">
-                send
+              <m3e-icon slot="icon" name={activeConfirmedConflict ? "event_busy" : "send"}>
+                {activeConfirmedConflict ? "event_busy" : "send"}
               </m3e-icon>
-              {loading ? "Submitting to Database..." : "Submit Booking Request"}
+              {loading
+                ? "Submitting to Database..."
+                : activeConfirmedConflict
+                ? "Slot Unavailable (Already Booked)"
+                : "Submit Booking Request"}
             </m3e-button>
           </div>
         </form>
@@ -674,7 +812,7 @@ export function BookingForm({
 
       {/* Right Column: Venue Details Card */}
       <div className="lg:col-span-5">
-        <div className="bg-surface-container-low rounded-lg p-6 sm:p-7 space-y-5">
+        <div className="bg-surface-container-low rounded-xl p-6 sm:p-7 space-y-5 border border-outline-variant/60 shadow-xs">
           <div className="border-b border-outline-variant pb-3">
             <h3 className="text-sm font-bold text-on-surface">
               Venue Specifications
@@ -795,6 +933,82 @@ export function BookingForm({
           </div>
         </div>
       </div>
+
+      {/* SLOT CLASH DIALOG MODAL */}
+      <m3e-dialog
+        ref={clashDialogRef}
+        open={showClashDialog || undefined}
+        dismissible
+        onclosed={handleCloseClashDialog}
+      >
+        <div slot="header" className="flex items-center gap-2">
+          <m3e-icon name="event_busy" className="text-error text-xl">event_busy</m3e-icon>
+          <span className="text-base font-bold text-on-surface">
+            Time Slot Unavailable — Already Booked
+          </span>
+        </div>
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-on-surface-variant">
+            This venue slot has already been approved and issued an administrative permit. Overlapping reservations cannot be submitted for this slot.
+          </p>
+
+          {activeConfirmedConflict && (
+            <div className="p-4 rounded-lg bg-surface-container-low border border-outline-variant/60 space-y-2.5 text-xs">
+              <div className="flex justify-between items-start gap-2 border-b border-outline-variant/40 pb-2">
+                <div>
+                  <div className="font-bold text-sm text-on-surface">
+                    {activeConfirmedConflict.event_title}
+                  </div>
+                  <div className="text-[11px] text-on-surface-variant">
+                    {activeConfirmedConflict.event_type}
+                  </div>
+                </div>
+                <m3e-chip variant="assist">
+                  <m3e-icon slot="icon" name="verified" className="text-success">verified</m3e-icon>
+                  Confirmed
+                </m3e-chip>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <span className="text-on-surface-variant block">Target Venue</span>
+                  <span className="font-semibold text-on-surface">
+                    {activeConfirmedConflict.venue_name || activeVenue.venue_name}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-on-surface-variant block">Date</span>
+                  <span className="font-semibold text-on-surface">
+                    {formatDateDDMMYYYY(activeConfirmedConflict.start_datetime)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-on-surface-variant block">Confirmed Hours</span>
+                  <span className="font-semibold text-on-surface">
+                    {formatTimeRailway(activeConfirmedConflict.start_datetime)} – {formatTimeRailway(activeConfirmedConflict.end_datetime)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-on-surface-variant block">Booking Reference</span>
+                  <span className="font-mono text-on-surface font-semibold">
+                    {activeConfirmedConflict.booking_ref}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="p-3 rounded-lg bg-surface-container-high text-xs text-on-surface-variant">
+            <strong>Next Steps:</strong> Shift your requested hours to a vacant slot on the timetable, or select another lecture hall / auditorium.
+          </div>
+        </div>
+        <div slot="actions" className="flex justify-end gap-2 w-full pt-2">
+          <m3e-button variant="filled" onClick={handleCloseClashDialog}>
+            <m3e-icon slot="icon" name="edit_calendar">edit_calendar</m3e-icon>
+            Acknowledge & Adjust Time
+          </m3e-button>
+        </div>
+      </m3e-dialog>
     </div>
   );
 }

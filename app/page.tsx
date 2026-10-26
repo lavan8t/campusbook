@@ -62,6 +62,7 @@ export default function CampusBookPage() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const [adminAccessCode, setAdminAccessCode] = useState<string>(ADMIN_ACCESS_CODE);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   // 3. Timetable State (Home View)
   const [timetableDate, setTimetableDate] = useState<string>("2026-10-22");
@@ -78,7 +79,7 @@ export default function CampusBookPage() {
   // 5. User Switching & Admin Auth Modal State
   const [showUserModal, setShowUserModal] = useState<boolean>(false);
   const [showAdminCodeModal, setShowAdminCodeModal] = useState<boolean>(false);
-  const [adminCodeInput, setAdminCodeInput] = useState<string>("0406");
+  const [adminCodeInput, setAdminCodeInput] = useState<string>("");
   const [adminCodeError, setAdminCodeError] = useState<string>("");
 
   // 6. Booking Form State (Normal Users)
@@ -90,6 +91,7 @@ export default function CampusBookPage() {
   const [eventType, setEventType] = useState<string>("ACADEMIC_LECTURE");
   const [expectedAttendees, setExpectedAttendees] = useState<number>(100);
   const [purposeNotes, setPurposeNotes] = useState<string>("");
+  const [serverConflict, setServerConflict] = useState<any>(null);
 
   // 7. Admin Clash & Approval Modals
   const [inspectingBooking, setInspectingBooking] = useState<Booking | null>(null);
@@ -112,6 +114,7 @@ export default function CampusBookPage() {
 
   // Restore saved theme on mount
   useEffect(() => {
+    setMounted(true);
     const savedTheme = localStorage.getItem("campusbook_theme") as "light" | "dark" | null;
     if (savedTheme === "light" || savedTheme === "dark") {
       setTheme(savedTheme);
@@ -151,10 +154,11 @@ export default function CampusBookPage() {
     }
   }
 
-  // Load timetable data whenever timetable date changes
+  // Load timetable data whenever timetable date or booking date changes
   useEffect(() => {
-    fetchTimetableSchedule(timetableDate);
-  }, [timetableDate]);
+    const targetDate = activeTab === "book" ? bookingDate : timetableDate;
+    fetchTimetableSchedule(targetDate);
+  }, [timetableDate, bookingDate, activeTab]);
 
   async function fetchTimetableSchedule(date: string) {
     try {
@@ -301,8 +305,8 @@ export default function CampusBookPage() {
       return;
     }
 
-    const startISO = new Date(`${bookingDate}T${startTime}:00`).toISOString();
-    const endISO = new Date(`${bookingDate}T${endTime}:00`).toISOString();
+    const startISO = `${bookingDate}T${startTime}:00+05:30`;
+    const endISO = `${bookingDate}T${endTime}:00+05:30`;
 
     if (new Date(endISO) <= new Date(startISO)) {
       showToast("End time must be after start time.");
@@ -327,12 +331,35 @@ export default function CampusBookPage() {
         showToast(`Request Submitted! Ref: ${res.data.booking_ref}. Queued for Admin review.`);
         setEventTitle("");
         setPurposeNotes("");
+        setServerConflict(null);
         refreshData();
         setActiveTab("my-bookings");
       }
     } catch (err: unknown) {
-      const errorObj = err as { message?: string };
-      showToast(errorObj.message || "Failed to submit booking request.");
+      const errorObj = err as {
+        message?: string;
+        code?: string;
+        data?: {
+          code?: string;
+          error?: string;
+          conflict?: any;
+        };
+      };
+      if (errorObj.code === "SLOT_ALREADY_BOOKED" || errorObj.data?.code === "SLOT_ALREADY_BOOKED") {
+        const conflict = errorObj.data?.conflict || null;
+        setServerConflict(
+          conflict || {
+            venue_name: selectedVenue.venue_name,
+            event_title: "Confirmed Institutional Booking",
+            start_datetime: startISO,
+            end_datetime: endISO,
+            booking_ref: "PERMIT-CONFIRMED",
+          }
+        );
+        showToast("Slot is already booked! Please select another time or venue.");
+      } else {
+        showToast(errorObj.message || "Failed to submit booking request.");
+      }
     } finally {
       setLoading(false);
     }
@@ -418,6 +445,15 @@ export default function CampusBookPage() {
     }
   }
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex bg-surface text-on-surface font-sans">
+        <aside className="hidden md:block w-52 shrink-0 h-screen sticky top-0 z-30 border-r border-outline-variant bg-surface" />
+        <div className="flex-1 flex flex-col min-w-0" />
+      </div>
+    );
+  }
+
   return (
     <m3e-theme color="#C8261E" scheme={theme} variant="vibrant">
       <div className={`min-h-screen flex ${theme === "dark" ? "dark bg-surface-container-lowest" : "bg-surface"} text-on-surface font-sans`}>
@@ -499,6 +535,9 @@ export default function CampusBookPage() {
                 loading={loading}
                 onSubmit={handleSubmitBooking}
                 prerequisiteCheck={prerequisiteCheck}
+                existingBookings={timetableBookings}
+                serverConflict={serverConflict}
+                onClearServerConflict={() => setServerConflict(null)}
               />
             )}
 

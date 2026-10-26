@@ -1,5 +1,6 @@
 import type { TimeSlotDef, BookingSpan } from "../types/timetable";
 
+export const CAMPUS_TIMEZONE = "Asia/Kolkata";
 export const TIMETABLE_START_HOUR = 8;
 export const TIMETABLE_END_HOUR = 21;
 export const SLOT_DURATION_MINUTES = 30;
@@ -19,73 +20,63 @@ export function generateTimeSlots(): TimeSlotDef[] {
 
 export function formatDateDDMMYYYY(dateVal: Date | string | null | undefined): string {
   if (!dateVal) return "";
-  if (typeof dateVal === "string") {
-    const isoMatch = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) {
-      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-    }
-  }
   const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
   if (d instanceof Date && !isNaN(d.getTime())) {
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    return d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: CAMPUS_TIMEZONE,
+    });
   }
   return String(dateVal);
 }
 
 export function formatDateDayDDMonYYYY(dateVal: Date | string | null | undefined): string {
   if (!dateVal) return "";
-  let y = 0, m = 0, d = 0;
-  if (typeof dateVal === "string") {
-    const match = dateVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-      y = Number(match[1]);
-      m = Number(match[2]);
-      d = Number(match[3]);
-    }
-  }
-  let dateObj: Date;
-  if (y && m && d) {
-    dateObj = new Date(y, m - 1, d);
-  } else {
-    dateObj = typeof dateVal === "string" ? new Date(dateVal) : (dateVal as Date);
-  }
-  if (!dateObj || isNaN(dateObj.getTime())) return String(dateVal);
-
-  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const dayName = weekdays[dateObj.getDay()] || "";
-  const dayStr = String(dateObj.getDate()).padStart(2, "0");
-  const monStr = months[dateObj.getMonth()] || "";
-  const yearStr = dateObj.getFullYear();
-  return `${dayName}, ${dayStr} ${monStr} ${yearStr}`;
-}
-
-export function formatTimeRailway(dateVal: Date | string | null | undefined): string {
-  if (!dateVal) return "";
-  if (typeof dateVal === "string") {
-    const timeMatch = dateVal.match(/(?:T|\s|^)(\d{1,2}):(\d{2})/);
-    if (timeMatch) {
-      return `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`;
-    }
-  }
   const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
   if (d instanceof Date && !isNaN(d.getTime())) {
-    const hours = String(d.getHours()).padStart(2, "0");
-    const minutes = String(d.getMinutes()).padStart(2, "0");
-    return `${hours}:${minutes}`;
+    return d.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: CAMPUS_TIMEZONE,
+    });
   }
   return String(dateVal);
 }
 
+export function formatTimeRailway(dateVal: Date | string | null | undefined): string {
+  if (!dateVal) return "";
+  if (typeof dateVal === "string" && /^\d{1,2}:\d{2}$/.test(dateVal.trim())) {
+    const parts = dateVal.trim().split(":");
+    return `${parts[0].padStart(2, "0")}:${parts[1]}`;
+  }
+  const d = typeof dateVal === "string" ? new Date(dateVal) : dateVal;
+  if (d instanceof Date && !isNaN(d.getTime())) {
+    return d.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: CAMPUS_TIMEZONE,
+    });
+  }
+  const match = String(dateVal).match(/(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : String(dateVal);
+}
+
 export function timeToSlotIndex(timeStr: string): number {
   if (!timeStr) return -1;
+  if (timeStr.includes("T") || timeStr.includes("Z")) {
+    const parts = parseIsoParts(timeStr);
+    if (!parts) return -1;
+    const minutesFromStart = parts.minutes - TIMETABLE_START_HOUR * 60;
+    if (minutesFromStart < 0) return -1;
+    return Math.floor(minutesFromStart / SLOT_DURATION_MINUTES);
+  }
   let cleanTime = timeStr;
-  if (cleanTime.includes("T")) {
-    cleanTime = cleanTime.split("T")[1];
-  } else if (cleanTime.includes(" ")) {
+  if (cleanTime.includes(" ")) {
     const parts = cleanTime.split(" ");
     cleanTime = parts[1] || parts[0];
   }
@@ -102,20 +93,39 @@ export function formatSlotTime(hour: number, minute: number): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function parseIsoParts(isoStr: string): { date: string; minutes: number } | null {
+export function parseIsoParts(isoStr: string): { date: string; minutes: number } | null {
   if (!isoStr) return null;
-  const match = isoStr.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})/);
-  if (match) {
-    const date = match[1];
-    const hour = parseInt(match[2], 10);
-    const minute = parseInt(match[3], 10);
-    return { date, minutes: hour * 60 + minute };
-  }
   const d = new Date(isoStr);
   if (!isNaN(d.getTime())) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: CAMPUS_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+
+    let year = "", month = "", day = "", hour = 0, minute = 0;
+    for (const p of parts) {
+      if (p.type === "year") year = p.value;
+      if (p.type === "month") month = p.value;
+      if (p.type === "day") day = p.value;
+      if (p.type === "hour") hour = parseInt(p.value, 10);
+      if (p.type === "minute") minute = parseInt(p.value, 10);
+    }
     return {
-      date: d.toISOString().split("T")[0],
-      minutes: d.getUTCHours() * 60 + d.getUTCMinutes(),
+      date: `${year}-${month}-${day}`,
+      minutes: hour * 60 + minute,
+    };
+  }
+
+  const match = isoStr.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})/);
+  if (match) {
+    return {
+      date: match[1],
+      minutes: parseInt(match[2], 10) * 60 + parseInt(match[3], 10),
     };
   }
   return null;

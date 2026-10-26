@@ -325,10 +325,26 @@ export function AdminQueue({
         <div className="space-y-4 py-2">
           <p className="text-xs text-on-surface-variant">
             You are approving <strong>{actionBooking?.event_title}</strong> for{" "}
-            <strong>{actionBooking?.venue_name}</strong>.
+            <strong>{actionBooking?.venue_name}</strong> on{" "}
+            <strong>{formatDateDDMMYYYY(actionBooking?.start_datetime)}</strong> (
+            <strong>
+              {formatTimeRailway(actionBooking?.start_datetime)} –{" "}
+              {formatTimeRailway(actionBooking?.end_datetime)}
+            </strong>
+            ).
           </p>
 
-          <m3e-form-field variant="outlined" className="w-full">
+          {Number(actionBooking?.competing_pending_count || 0) > 0 && (
+            <div className="p-3 rounded-lg bg-error-container text-on-error-container flex items-start gap-2.5 text-xs">
+              <m3e-icon name="warning" className="text-base shrink-0 mt-0.5">warning</m3e-icon>
+              <div className="text-[11px] leading-relaxed">
+                <strong>Slot Clash Impact:</strong> Approving this permit will automatically reject{" "}
+                <strong>{actionBooking?.competing_pending_count}</strong> competing pending request(s) on this slot via PostgreSQL GiST exclusion.
+              </div>
+            </div>
+          )}
+
+          <m3e-form-field variant="outlined" float-label="always" className="w-full">
             <label slot="label" htmlFor="approval-remarks-input">
               Permit Approval Remarks / Instructions
             </label>
@@ -378,10 +394,17 @@ export function AdminQueue({
         </div>
         <div className="space-y-4 py-2">
           <p className="text-xs text-on-surface-variant">
-            Document reason for rejection for <strong>{actionBooking?.requester_name}</strong>.
+            Document reason for rejection for <strong>{actionBooking?.requester_name}</strong> (
+            <strong>{actionBooking?.event_title}</strong> on{" "}
+            <strong>{formatDateDDMMYYYY(actionBooking?.start_datetime)}</strong>,{" "}
+            <strong>
+              {formatTimeRailway(actionBooking?.start_datetime)} –{" "}
+              {formatTimeRailway(actionBooking?.end_datetime)}
+            </strong>
+            ).
           </p>
 
-          <m3e-form-field variant="outlined" className="w-full">
+          <m3e-form-field variant="outlined" float-label="always" className="w-full">
             <label slot="label" htmlFor="rejection-remarks-input">
               Rejection Reason / Remarks
             </label>

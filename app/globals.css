@@ -173,8 +173,8 @@ m3e-theme[scheme="dark"] {
   --m3e-option-last-child-shape: 8px;
 
   /* Visible Outlines for Material 3 Form Fields */
-  --m3e-form-field-outline-color: var(--md-sys-color-outline-variant);
-  --m3e-form-field-hover-outline-color: var(--md-sys-color-outline);
+  --m3e-form-field-outline-color: var(--md-sys-color-outline);
+  --m3e-form-field-hover-outline-color: var(--md-sys-color-primary);
   --m3e-form-field-focus-outline-color: var(--md-sys-color-primary);
   --m3e-form-field-label-color: var(--md-sys-color-on-surface-variant);
   --m3e-form-field-focus-label-color: var(--md-sys-color-primary);
@@ -277,10 +277,31 @@ m3e-form-field {
   --m3e-form-field-container-shape: 8px;
   --m3e-outlined-form-field-container-shape: 8px;
   --m3e-form-field-active-indicator-shape: 8px;
+  --m3e-form-field-outline-color: var(--md-sys-color-outline);
+  --m3e-form-field-hover-outline-color: var(--md-sys-color-primary);
+  --m3e-form-field-focus-outline-color: var(--md-sys-color-primary);
   margin-top: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   display: block;
-  overflow: visible;
+  overflow: visible !important;
+}
+
+m3e-form-field::part(container),
+m3e-form-field::part(outline),
+m3e-form-field .base {
+  overflow: visible !important;
+}
+
+m3e-form-field label[slot="label"],
+m3e-form-field [slot="label"] {
+  font-size: 12px !important;
+  line-height: 16px !important;
+  font-weight: 500 !important;
+  overflow: visible !important;
+  background-color: var(--md-sys-color-surface-container-lowest, var(--md-sys-color-surface));
+  padding-inline: 4px;
+  border-radius: 4px;
+  z-index: 1;
 }
 
 m3e-select {

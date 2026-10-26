@@ -161,6 +161,7 @@ export default function UserSwitcherModal({
               <m3e-form-field
                 label="Administrator Passcode"
                 variant="outlined"
+                float-label="always"
                 className="w-full"
               >
                 <label slot="label">Administrator Passcode</label>

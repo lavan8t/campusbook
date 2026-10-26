@@ -95,7 +95,48 @@ export async function createBooking(req: Request, res: Response, next: NextFunct
       });
     }
 
-    // 3. Create Event record
+    // 3. Temporal Exclusion Check: Verify if slot overlaps with an already ACCEPTED (CONFIRMED) booking
+    const confirmedConflictResult = await query(
+      `SELECT 
+        b.booking_id,
+        b.booking_ref,
+        b.start_datetime,
+        b.end_datetime,
+        e.event_title,
+        e.event_type,
+        u.full_name AS requester_name,
+        v.venue_name
+       FROM bookings b
+       JOIN events e ON b.event_id = e.event_id
+       JOIN users u ON b.user_id = u.user_id
+       JOIN venues v ON b.venue_id = v.venue_id
+       WHERE b.venue_id = $1
+         AND b.booking_status = 'CONFIRMED'
+         AND tstzrange(b.start_datetime, b.end_datetime, '[)') && tstzrange($2, $3, '[)')
+       LIMIT 1`,
+      [venue_id, start, end]
+    );
+
+    if (confirmedConflictResult.rows.length > 0) {
+      const conflict = confirmedConflictResult.rows[0];
+      return res.status(409).json({
+        success: false,
+        code: "SLOT_ALREADY_BOOKED",
+        error: `This slot has already been booked and accepted for '${conflict.event_title}' at ${conflict.venue_name}.`,
+        conflict: {
+          booking_id: conflict.booking_id,
+          booking_ref: conflict.booking_ref,
+          event_title: conflict.event_title,
+          event_type: conflict.event_type,
+          requester_name: conflict.requester_name,
+          venue_name: conflict.venue_name,
+          start_datetime: conflict.start_datetime,
+          end_datetime: conflict.end_datetime,
+        },
+      });
+    }
+
+    // 4. Create Event record
     const eventResult = await query(
       `INSERT INTO events (event_title, event_type, description, expected_attendees, organizer_user_id, club_id)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -299,7 +340,7 @@ export async function getTimetableBookings(req: Request, res: Response, next: Ne
       JOIN events e ON b.event_id = e.event_id
       LEFT JOIN clubs c ON e.club_id = c.club_id
       LEFT JOIN booking_approvals ba ON b.booking_id = ba.booking_id
-      WHERE DATE(b.start_datetime AT TIME ZONE 'UTC') = $1
+      WHERE DATE(b.start_datetime AT TIME ZONE 'Asia/Kolkata') = $1
         AND b.booking_status IN ('CONFIRMED', 'PENDING')
       ORDER BY b.start_datetime ASC`,
       [dateStr]
