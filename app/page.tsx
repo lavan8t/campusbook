@@ -6,6 +6,7 @@ import {
   ADMIN_ACCESS_CODE,
   FALLBACK_VENUES,
   FALLBACK_TIMETABLE_BOOKINGS,
+  FALLBACK_UTILIZATION_STATS,
   type CampusUser,
 } from "@/data/schema";
 import { getSystemDateYYYYMMDD } from "@/lib/timetableUtils";
@@ -56,26 +57,38 @@ type ActiveTab =
   | "admin-reports"
   | "options";
 
-export default function CampusBookPage() {
+export default function CampusBookPage({
+  initialTab = "timetable",
+  initialUser = APP_USERS[0],
+}: {
+  initialTab?: ActiveTab;
+  initialUser?: CampusUser;
+} = {}) {
   // 1. Current Active User State (Default: Aditya Sharma - Club Head)
-  const [currentUser, setCurrentUser] = useState<CampusUser>(APP_USERS[0]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>("timetable");
+  const [currentUser, setCurrentUser] = useState<CampusUser>(initialUser);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
 
   // 2. Theme State & Mobile Nav State
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const [adminAccessCode, setAdminAccessCode] = useState<string>(ADMIN_ACCESS_CODE);
-  const [mounted, setMounted] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(true);
 
   // 3. Timetable State (Home View)
-  const [timetableDate, setTimetableDate] = useState<string>("2026-10-26");
+  const [timetableDate, setTimetableDate] = useState<string>("2026-10-29");
   const [timetableBookings, setTimetableBookings] = useState<Booking[]>(FALLBACK_TIMETABLE_BOOKINGS);
 
   // 4. Data State from Backend
   const [venues, setVenues] = useState<Venue[]>(FALLBACK_VENUES as unknown as Venue[]);
-  const [myBookingsList, setMyBookingsList] = useState<Booking[]>([]);
-  const [pendingQueue, setPendingQueue] = useState<Booking[]>([]);
-  const [utilizationStats, setUtilizationStats] = useState<UtilizationStat[]>([]);
+  const [myBookingsList, setMyBookingsList] = useState<Booking[]>(
+    FALLBACK_TIMETABLE_BOOKINGS.filter((b) => Number(b.user_id) === 4)
+  );
+  const [pendingQueue, setPendingQueue] = useState<Booking[]>(
+    FALLBACK_TIMETABLE_BOOKINGS.filter((b) => b.booking_status === "PENDING")
+  );
+  const [utilizationStats, setUtilizationStats] = useState<UtilizationStat[]>(
+    FALLBACK_UTILIZATION_STATS as unknown as UtilizationStat[]
+  );
   const [backendOnline, setBackendOnline] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -212,14 +225,30 @@ export default function CampusBookPage() {
     if (currentUser.user_type === "normal") {
       getMyBookings(currentUser.user_id)
         .then((res) => { if (res.success) setMyBookingsList(res.data); })
-        .catch(() => {});
+        .catch(() => {
+          setMyBookingsList(
+            FALLBACK_TIMETABLE_BOOKINGS.filter(
+              (b) => Number(b.user_id) === Number(currentUser.user_id)
+            )
+          );
+        });
     } else {
       getPendingApprovals()
         .then((res) => { if (res.success) setPendingQueue(res.data); })
-        .catch(() => {});
+        .catch(() => {
+          setPendingQueue(
+            FALLBACK_TIMETABLE_BOOKINGS.filter(
+              (b) => b.booking_status === "PENDING"
+            )
+          );
+        });
       getUtilizationReport()
         .then((res) => { if (res.success) setUtilizationStats(res.data); })
-        .catch(() => {});
+        .catch(() => {
+          setUtilizationStats(
+            FALLBACK_UTILIZATION_STATS as unknown as UtilizationStat[]
+          );
+        });
     }
   }, [currentUser]);
 
